@@ -16,6 +16,12 @@ contract AnonNFTEx is ReentrancyGuard {
     uint public constant NFT_SOLD_GROUP_ID = 1;
     uint public constant ETH_DEPOSITED_GROUP_ID = 2;
 
+    uint public constant BUYER_WITHDRAW_UNSPENT_ETH_SIGNAL = 0;
+    uint public constant BUYER_BUY_AND_CLAIM_NFT_SIGNAL = 1;
+    uint public constant SELLER_CLAIM_ETH_SIGNAL = 2;
+
+
+
     struct NFTDeposit {
         address sellerAddr;
         uint idCommitment;
@@ -92,7 +98,7 @@ contract AnonNFTEx is ReentrancyGuard {
         semaphore.verifyProof(
             ETH_DEPOSITED_GROUP_ID,
             merkleTreeRoot,
-            0,
+            BUYER_WITHDRAW_UNSPENT_ETH_SIGNAL,
             nullifierHash,
             ETH_DEPOSITED_GROUP_ID,
             proof
@@ -111,18 +117,18 @@ contract AnonNFTEx is ReentrancyGuard {
         uint256[8] calldata proof,
         address nftRecipient
     ) external nonReentrant {
-        require(
-            nftDeposits[nftAddr][tokenId].sellerAddr != address(0) &&
-                nftDeposits[nftAddr][tokenId].idCommitment != 0,
-            "NFT not deposited or has been sold"
-        );
+        // require(
+        //     nftDeposits[nftAddr][tokenId].sellerAddr != address(0) &&
+        //         nftDeposits[nftAddr][tokenId].idCommitment != 0,
+        //     "NFT not deposited or has been sold"
+        // );
 
-        uint signal = uint256(keccak256(abi.encodePacked(nftAddr, tokenId)));
+        // uint signal = uint256(keccak256(abi.encodePacked(nftAddr, tokenId)));
 
         semaphore.verifyProof(
             ETH_DEPOSITED_GROUP_ID,
             merkleTreeRoot,
-            signal,
+            BUYER_BUY_AND_CLAIM_NFT_SIGNAL,
             nullifierHash,
             ETH_DEPOSITED_GROUP_ID,
             proof
@@ -151,7 +157,7 @@ contract AnonNFTEx is ReentrancyGuard {
         semaphore.verifyProof(
             NFT_SOLD_GROUP_ID,
             merkleTreeRoot,
-            uint256(uint160(ethRecipient)),
+            SELLER_CLAIM_ETH_SIGNAL,
             nullifierHash,
             NFT_SOLD_GROUP_ID,
             proof

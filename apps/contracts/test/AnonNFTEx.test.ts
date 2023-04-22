@@ -5,9 +5,10 @@ import { Contract, ContractFactory, BigNumber } from "ethers"
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers"
 import { Identity } from "@semaphore-protocol/identity"
 import { generateProof } from "@semaphore-protocol/proof"
-import { SimpleNFT } from "../build/typechain/contracts/SimpleNFT"
 import { Group } from "@semaphore-protocol/group"
+import { SimpleNFT } from "../build/typechain/contracts/SimpleNFT"
 import { AnonNFTEx, Semaphore } from "../build/typechain"
+import { config } from "../package.json"
 
 describe.only("AnonNFTEx", () => {
     let semaphore: Semaphore
@@ -16,14 +17,20 @@ describe.only("AnonNFTEx", () => {
     let deployer: SignerWithAddress
     let accounts: SignerWithAddress[]
 
-    let sellerIdentity: any
-    let buyerIdentity: any
+    const sellerIdentity = new Identity()
+    const buyerIdentity = new Identity()
 
     const NFT_SOLD_GROUP_ID = 1
     const ETH_DEPOSITED_GROUP_ID = 2
 
+    const BUYER_BUY_AND_CLAIM_NFT_SIGNAL = 1
+    const SELLER_CLAIM_ETH_SIGNAL = 2
+
     const nftSoldGroup = new Group(NFT_SOLD_GROUP_ID, 20)
     const ethDepositedGroup = new Group(ETH_DEPOSITED_GROUP_ID, 20)
+
+    const wasmFilePath = `${config.paths.build["snark-artifacts"]}/semaphore.wasm`
+    const zkeyFilePath = `${config.paths.build["snark-artifacts"]}/semaphore.zkey`
 
     before(async () => {
         const AnonNFTExFactory = await ethers.getContractFactory("AnonNFTEx")
@@ -47,7 +54,6 @@ describe.only("AnonNFTEx", () => {
         await simpleNFT.connect(deployer).mintNFT(accounts[0].address)
         await simpleNFT.connect(accounts[0]).approve(anonNFTEx.address, tokenId)
 
-        sellerIdentity = new Identity()
         await anonNFTEx.connect(accounts[0]).depositNFT(simpleNFT.address, tokenId, sellerIdentity.commitment)
 
         const deposit = await anonNFTEx.nftDeposits(simpleNFT.address, tokenId)
@@ -56,7 +62,6 @@ describe.only("AnonNFTEx", () => {
     })
 
     it("Should deposit ETH", async () => {
-        buyerIdentity = new Identity()
         const depositAmount = ethers.utils.parseEther("0.1")
 
         await anonNFTEx.connect(accounts[1]).depositETH(buyerIdentity.commitment, {
@@ -72,21 +77,16 @@ describe.only("AnonNFTEx", () => {
     it("ETH depositor can buy and claim NFT to new address", async () => {
         const tokenId = 1
         const nftRecipient = accounts[2].address
-        const externalNullifier = ethDepositedGroup.root
-        // const signal = ethers.utils.hexlify(
-        //     ethers.BigNumber.from(
-        //         ethers.utils.keccak256(
-        //             ethers.utils.defaultAbiCoder.encode(["address", "uint256"], [simpleNFT.address, tokenId])
-        //         )
-        //     )
-        // );
-        const signal = 1;
-        console.log(signal);
-        const fullProof = await generateProof(buyerIdentity, ethDepositedGroup, externalNullifier, signal, {
-            zkeyFilePath: "./tests/semaphore/semaphore.zkey",
-            wasmFilePath: "./test/semaphore/semaphore.wasm"
-        })
-        console.log(fullProof);
+        const fullProof = await generateProof(
+            buyerIdentity,
+            ethDepositedGroup,
+            ethDepositedGroup.id,
+            BUYER_BUY_AND_CLAIM_NFT_SIGNAL,
+            {
+                wasmFilePath,
+                zkeyFilePath
+            }
+        )
 
         await anonNFTEx
             .connect(accounts[0])
@@ -99,22 +99,26 @@ describe.only("AnonNFTEx", () => {
                 nftRecipient
             )
 
+        nftSoldGroup.addMember(sellerIdentity.commitment)
+
         expect(await simpleNFT.ownerOf(tokenId)).to.equal(nftRecipient)
     })
 
-    //   it("NFT seller can claim ETH for NFT sold", async () => {
-    //     const initialBalance = await accounts[0].getBalance();
-    //     const { merkleTreeRoot, nullifierHash, proof } = await generateProof();
+    it("NFT seller can claim ETH for NFT sold", async () => {
+        const initialBalance = await accounts[1].getBalance()
 
-    //     await anonNFTEx
-    //       .connect(accounts[0])
-    //       .claimETH(accounts[0].address, merkleTreeRoot, nullifierHash, proof);
+        const fullProof = await generateProof(sellerIdentity, nftSoldGroup, nftSoldGroup.id, SELLER_CLAIM_ETH_SIGNAL, {
+            wasmFilePath,
+            zkeyFilePath
+        })
 
-    //     const finalBalance = await accounts[0].getBalance();
-    //     expect(finalBalance.sub(initialBalance)).to.equal(
-    //       ethers.utils.parseEther("0.1")
-    //     );
-    //   });
+        await anonNFTEx
+            .connect(accounts[1])
+            .claimETH(accounts[1].address, fullProof.merkleTreeRoot, fullProof.nullifierHash, fullProof.proof)
+
+        const finalBalance = await accounts[1].getBalance()
+        expect(finalBalance.sub(initialBalance)).to.closeTo(ethers.utils.parseEther("0.1"), ethers.utils.parseEther("0.001"))
+    })
 
     // TODO: Add more tests for each function in the contract
     // - withdrawNFT
