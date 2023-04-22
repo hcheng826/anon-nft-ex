@@ -73,7 +73,7 @@ contract AnonNFTEx is ReentrancyGuard {
         uint256 identityCommitment
     ) external payable nonReentrant {
         require(msg.value == 0.1 ether, "Deposit must be exactly 0.1 ETH");
-        require(ethDeposits[msg.sender] != 0, "ETH deposit already made");
+        require(ethDeposits[msg.sender] == 0, "ETH deposit already made");
         ethDeposits[msg.sender] = identityCommitment;
         semaphore.addMember(ETH_DEPOSITED_GROUP_ID, identityCommitment);
     }
