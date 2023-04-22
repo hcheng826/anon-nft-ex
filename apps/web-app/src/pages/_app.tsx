@@ -17,6 +17,7 @@ import Head from "next/head"
 import { useRouter } from "next/router"
 import { useEffect, useState } from "react"
 import { FaGithub } from "react-icons/fa"
+import { ThirdwebProvider, ConnectWallet } from "@thirdweb-dev/react"
 import LogsContext from "../context/LogsContext"
 import SemaphoreContext from "../context/SemaphoreContext"
 import useSemaphore from "../hooks/useSemaphore"
@@ -52,63 +53,66 @@ export default function App({ Component, pageProps }: AppProps) {
 
     return (
         <>
-            <Head>
-                <title>Semaphore boilerplate</title>
-                <link rel="icon" href="/favicon.ico" />
-                <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
-                <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
-                <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
-                <link rel="manifest" href="/manifest.json" />
-                <meta name="theme-color" content="#ebedff" />
-            </Head>
+            <ThirdwebProvider activeChain={"localhost"}>
+                <Head>
+                    <title>Semaphore boilerplate</title>
+                    <link rel="icon" href="/favicon.ico" />
+                    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+                    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+                    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+                    <link rel="manifest" href="/manifest.json" />
+                    <meta name="theme-color" content="#ebedff" />
+                </Head>
 
-            <ChakraProvider theme={theme}>
-                <VStack>
-                    <HStack>
-                        <Link href="/list-nft">List NFT</Link>
-                        <Link href="/claim-eth">Claim ETH</Link>
-                        <Link href="/deposit-eth">Deposit ETH</Link>
-                        <Link href="/buy-nft">Claim NFT</Link>
-                        <Link href="/generate-proof">Generate Proof</Link>
+                <ChakraProvider theme={theme}>
+                    <VStack>
+                        <HStack>
+                            <Link href="/list-nft">List NFT</Link>
+                            <Link href="/claim-eth">Claim ETH</Link>
+                            <Link href="/deposit-eth">Deposit ETH</Link>
+                            <Link href="/buy-nft">Claim NFT</Link>
+                            <Link href="/generate-proof">Generate Proof</Link>
+                            <ConnectWallet />
+                        </HStack>
+                    </VStack>
+                    <HStack align="center" justify="right" p="2">
+                        <Link href={getExplorerLink(env.DEFAULT_NETWORK, env.FEEDBACK_CONTRACT_ADDRESS)} isExternal>
+                            <Text>{shortenAddress(env.FEEDBACK_CONTRACT_ADDRESS)}</Text>
+                        </Link>
+                        <Link href="https://github.com/semaphore-protocol/boilerplate" isExternal>
+                            <IconButton aria-label="Github repository" icon={<Icon boxSize={6} as={FaGithub} />} />
+                        </Link>
                     </HStack>
-                </VStack>
-                <HStack align="center" justify="right" p="2">
-                    <Link href={getExplorerLink(env.DEFAULT_NETWORK, env.FEEDBACK_CONTRACT_ADDRESS)} isExternal>
-                        <Text>{shortenAddress(env.FEEDBACK_CONTRACT_ADDRESS)}</Text>
-                    </Link>
-                    <Link href="https://github.com/semaphore-protocol/boilerplate" isExternal>
-                        <IconButton aria-label="Github repository" icon={<Icon boxSize={6} as={FaGithub} />} />
-                    </Link>
-                </HStack>
 
-                <Container maxW="lg" flex="1" display="flex" alignItems="center">
-                    <Stack py="8" display="flex" width="100%">
-                        <SemaphoreContext.Provider value={semaphore}>
-                            <LogsContext.Provider
-                                value={{
-                                    _logs,
-                                    setLogs
-                                }}
-                            >
-                                <Component {...pageProps} />
-                            </LogsContext.Provider>
-                        </SemaphoreContext.Provider>
-                    </Stack>
-                </Container>
+                    <Container maxW="lg" flex="1" display="flex" alignItems="center">
+                        <Stack py="8" display="flex" width="100%">
+                            <SemaphoreContext.Provider value={semaphore}>
+                                <LogsContext.Provider
+                                    value={{
+                                        _logs,
+                                        setLogs
+                                    }}
+                                >
+                                    <Component {...pageProps} />
+                                </LogsContext.Provider>
+                            </SemaphoreContext.Provider>
+                        </Stack>
+                    </Container>
 
-                <HStack
-                    flexBasis="56px"
-                    borderTop="1px solid #8f9097"
-                    backgroundColor="#DAE0FF"
-                    align="center"
-                    justify="center"
-                    spacing="4"
-                    p="4"
-                >
-                    {_logs.endsWith("...") && <Spinner color="primary.400" />}
-                    <Text fontWeight="bold">{_logs || `Current step: ${router.route}`}</Text>
-                </HStack>
-            </ChakraProvider>
+                    <HStack
+                        flexBasis="56px"
+                        borderTop="1px solid #8f9097"
+                        backgroundColor="#DAE0FF"
+                        align="center"
+                        justify="center"
+                        spacing="4"
+                        p="4"
+                    >
+                        {_logs.endsWith("...") && <Spinner color="primary.400" />}
+                        <Text fontWeight="bold">{_logs || `Current step: ${router.route}`}</Text>
+                    </HStack>
+                </ChakraProvider>
+            </ThirdwebProvider>
         </>
     )
 }
