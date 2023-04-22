@@ -1,167 +1,116 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { Box, Button, Divider, Heading, HStack, Link, Text, useBoolean, VStack } from "@chakra-ui/react"
 import { Group } from "@semaphore-protocol/group"
 import { Identity } from "@semaphore-protocol/identity"
 import { generateProof } from "@semaphore-protocol/proof"
-import { BigNumber, utils } from "ethers"
+import { BigNumber, ethers, utils } from "ethers"
 import getNextConfig from "next/config"
 import { useRouter } from "next/router"
+import { useContractWrite, useContract, Web3Button, useAddress } from "@thirdweb-dev/react"
 import { useCallback, useContext, useEffect, useState } from "react"
-import Feedback from "../../contract-artifacts/Feedback.json"
-import Stepper from "../components/Stepper"
+import SimpleNFTArtifact from "../../contract-artifacts/SimpleNFT.json"
+import AnonNFTEx from "../../contract-artifacts/AnonNFTEx.json"
 import LogsContext from "../context/LogsContext"
 import SemaphoreContext from "../context/SemaphoreContext"
 import IconAddCircleFill from "../icons/IconAddCircleFill"
 import IconRefreshLine from "../icons/IconRefreshLine"
 
 const { publicRuntimeConfig: env } = getNextConfig()
+const nftContractAddress = process.env.NFT_CONTRACT_ADDRESS || "0x0165878a594ca255338adfa4d48449f69242eb8f"
+const pollingInterval = 5000 // Polling interval in milliseconds
 
-export default function ProofsPage() {
+async function fetchOwnedNFTs(userAddress: string, nftContractAddresses: string[]) {
+    const provider = new ethers.providers.JsonRpcProvider(env.rpcUrl)
+    const erc721ABI = [
+        "function balanceOf(address _owner) external view returns (uint256)",
+        "function tokenOfOwnerByIndex(address _owner, uint256 _index) external view returns (uint256)",
+        "function ownerOf(uint256 tokenId) public view returns (address)"
+    ]
+
+    const nftInfoList: Array<{ contractAddress: string; tokenId: number }> = []
+
+    for (const nftContractAddr of nftContractAddresses) {
+        const nftContract = new ethers.Contract(nftContractAddr, erc721ABI, provider)
+        try {
+            for (let i = 1; i < 5; i += 1) {
+                if ((await nftContract.ownerOf(i)) === userAddress) {
+                    nftInfoList.push({ contractAddress: nftContractAddr, tokenId: i })
+                }
+            }
+        } catch (error) {
+            console.error(`Error fetching NFTs from contract ${nftContractAddr}:`, error)
+        }
+    }
+
+    return nftInfoList
+}
+
+export default function ListNFTPage() {
     const router = useRouter()
-    const { setLogs } = useContext(LogsContext)
-    const { _users, _feedback, refreshFeedback, addFeedback } = useContext(SemaphoreContext)
+    const address = useAddress()
+
     const [_loading, setLoading] = useBoolean()
     const [_identity, setIdentity] = useState<Identity>()
+    const [nftInfoList, setNftInfoList] = useState<Array<{ contractAddress: string; tokenId: BigNumber }>>([])
 
     useEffect(() => {
-        const identityString = localStorage.getItem("identity")
+        if (address) {
+            const nftContractAddresses = [nftContractAddress]
 
-        if (!identityString) {
-            router.push("/")
-            return
-        }
+            const fetchAndUpdateNFTs = async () => {
+                const ownedNFTs = await fetchOwnedNFTs(address, nftContractAddresses)
+                setNftInfoList(ownedNFTs)
+            }
 
-        setIdentity(new Identity(identityString))
-    }, [])
+            fetchAndUpdateNFTs()
+            const pollingIntervalId = setInterval(fetchAndUpdateNFTs, pollingInterval)
 
-    useEffect(() => {
-        if (_feedback.length > 0) {
-            setLogs(`${_feedback.length} feedback retrieved from the group 🤙🏽`)
-        }
-    }, [_feedback])
-
-    const sendFeedback = useCallback(async () => {
-        if (!_identity) {
-            return
-        }
-
-        const feedback = prompt("Please enter your feedback:")
-
-        if (feedback && _users) {
-            setLoading.on()
-
-            setLogs(`Posting your anonymous feedback...`)
-
-            try {
-                const group = new Group(env.GROUP_ID)
-
-                const signal = BigNumber.from(utils.formatBytes32String(feedback)).toString()
-
-                group.addMembers(_users)
-
-                const { proof, merkleTreeRoot, nullifierHash } = await generateProof(
-                    _identity,
-                    group,
-                    env.GROUP_ID,
-                    signal
-                )
-
-                let response: any
-
-                if (env.OPENZEPPELIN_AUTOTASK_WEBHOOK) {
-                    response = await fetch(env.OPENZEPPELIN_AUTOTASK_WEBHOOK, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            abi: Feedback.abi,
-                            address: env.FEEDBACK_CONTRACT_ADDRESS,
-                            functionName: "sendFeedback",
-                            functionParameters: [signal, merkleTreeRoot, nullifierHash, proof]
-                        })
-                    })
-                } else {
-                    response = await fetch("api/feedback", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            feedback: signal,
-                            merkleTreeRoot,
-                            nullifierHash,
-                            proof
-                        })
-                    })
-                }
-
-                if (response.status === 200) {
-                    addFeedback(feedback)
-
-                    setLogs(`Your feedback was posted 🎉`)
-                } else {
-                    setLogs("Some error occurred, please try again!")
-                }
-            } catch (error) {
-                console.error(error)
-
-                setLogs("Some error occurred, please try again!")
-            } finally {
-                setLoading.off()
+            return () => {
+                clearInterval(pollingIntervalId)
             }
         }
-    }, [_identity])
+    }, [address])
+
+    const { contract } = useContract(nftContractAddress, SimpleNFTArtifact.abi)
+    const { mutateAsync, isLoading, error } = useContractWrite(contract, "mintNFT")
+
+    const handleMint = async () => {
+        try {
+            await mutateAsync({ args: [address] })
+        } catch (e) {
+            console.error(e)
+        }
+    }
 
     return (
         <>
-            <Heading as="h2" size="xl">
-                Proofs
+            <VStack spacing={4}>
+                <Box>
+                    <Button colorScheme="blue" onClick={handleMint} isLoading={isLoading}>
+                        Mint NFT
+                    </Button>
+                </Box>
+                {error! && (
+                    <Box>
+                        <Text color="red.500">Error</Text>
+                    </Box>
+                )}
+            </VStack>
+            <Heading as="h2" size="lg" mb={4}>
+                My NFTs
             </Heading>
-
-            <Text pt="2" fontSize="md">
-                Semaphore members can anonymously{" "}
-                <Link href="https://semaphore.appliedzkp.org/docs/guides/proofs" color="primary.500" isExternal>
-                    prove
-                </Link>{" "}
-                that they are part of a group and that they are generating their own signals. Signals could be anonymous
-                votes, leaks, reviews, or feedback.
-            </Text>
-
-            <Divider pt="5" borderColor="gray.500" />
-
-            <HStack py="5" justify="space-between">
-                <Text fontWeight="bold" fontSize="lg">
-                    Feedback signals ({_feedback.length})
-                </Text>
-                <Button leftIcon={<IconRefreshLine />} variant="link" color="text.700" onClick={refreshFeedback}>
-                    Refresh
-                </Button>
-            </HStack>
-
-            <Box pb="5">
-                <Button
-                    w="100%"
-                    fontWeight="bold"
-                    justifyContent="left"
-                    colorScheme="primary"
-                    px="4"
-                    onClick={sendFeedback}
-                    isDisabled={_loading}
-                    leftIcon={<IconAddCircleFill />}
-                >
-                    Send Feedback
-                </Button>
-            </Box>
-
-            {_feedback.length > 0 && (
-                <VStack spacing="3" align="left">
-                    {_feedback.map((f, i) => (
-                        <HStack key={i} p="3" borderWidth={1}>
-                            <Text>{f}</Text>
-                        </HStack>
-                    ))}
-                </VStack>
-            )}
-
-            <Divider pt="6" borderColor="gray" />
-
-            <Stepper step={3} onPrevClick={() => router.push("/groups")} />
+            <VStack align="start" spacing={4}>
+                {nftInfoList.map((nftInfo, index) => (
+                    <Box key={index}>
+                        <Text>
+                            Contract Address: <strong>{nftInfo.contractAddress}</strong>
+                        </Text>
+                        <Text>
+                            Token ID: <strong>{nftInfo.tokenId.toString()}</strong>
+                        </Text>
+                    </Box>
+                ))}
+            </VStack>
         </>
     )
 }

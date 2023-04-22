@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import {
     ChakraProvider,
     Container,
@@ -53,7 +54,7 @@ export default function App({ Component, pageProps }: AppProps) {
 
     return (
         <>
-            <ThirdwebProvider activeChain={"localhost"}>
+            <ThirdwebProvider activeChain={'localhost'}>
                 <Head>
                     <title>Semaphore boilerplate</title>
                     <link rel="icon" href="/favicon.ico" />

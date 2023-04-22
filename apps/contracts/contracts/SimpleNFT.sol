@@ -9,7 +9,7 @@ contract SimpleNFT is ERC721, Ownable {
 
     constructor() ERC721("SimpleNFT", "SNFT") {}
 
-    function mintNFT(address recipient) public onlyOwner returns (uint256) {
+    function mintNFT(address recipient) public returns (uint256) {
         _currentTokenId += 1;
         _safeMint(recipient, _currentTokenId);
         return _currentTokenId;
