@@ -1,4 +1,15 @@
-import { ChakraProvider, Container, HStack, Icon, IconButton, Link, Spinner, Stack, Text } from "@chakra-ui/react"
+import {
+    ChakraProvider,
+    Container,
+    HStack,
+    Icon,
+    IconButton,
+    Link,
+    Spinner,
+    Stack,
+    Text,
+    VStack
+} from "@chakra-ui/react"
 import { Network } from "@semaphore-protocol/data"
 import type { AppProps } from "next/app"
 import getNextConfig from "next/config"
@@ -52,6 +63,15 @@ export default function App({ Component, pageProps }: AppProps) {
             </Head>
 
             <ChakraProvider theme={theme}>
+                <VStack>
+                    <HStack>
+                        <Link href="/list-nft">List NFT</Link>
+                        <Link href="/claim-eth">Claim ETH</Link>
+                        <Link href="/deposit-eth">Deposit ETH</Link>
+                        <Link href="/buy-nft">Claim NFT</Link>
+                        <Link href="/generate-proof">Generate Proof</Link>
+                    </HStack>
+                </VStack>
                 <HStack align="center" justify="right" p="2">
                     <Link href={getExplorerLink(env.DEFAULT_NETWORK, env.FEEDBACK_CONTRACT_ADDRESS)} isExternal>
                         <Text>{shortenAddress(env.FEEDBACK_CONTRACT_ADDRESS)}</Text>
