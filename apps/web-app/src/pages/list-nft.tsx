@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-shadow */
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { Box, Button, Divider, Heading, HStack, Link, Text, useBoolean, VStack } from "@chakra-ui/react"
+import { Box, Button, Divider, Heading, HStack, Link, Text, useBoolean, VStack, Textarea } from "@chakra-ui/react"
 import { Group } from "@semaphore-protocol/group"
 import { Identity } from "@semaphore-protocol/identity"
 import { generateProof } from "@semaphore-protocol/proof"
@@ -11,32 +11,26 @@ import { useContractWrite, useContract, Web3Button, useAddress, useContractRead 
 import { useCallback, useContext, useEffect, useState } from "react"
 import SimpleNFTArtifact from "../../contract-artifacts/SimpleNFT.json"
 import AnonNFTEx from "../../contract-artifacts/AnonNFTEx.json"
-import LogsContext from "../context/LogsContext"
-import SemaphoreContext from "../context/SemaphoreContext"
-import IconAddCircleFill from "../icons/IconAddCircleFill"
-import IconRefreshLine from "../icons/IconRefreshLine"
 
 const { publicRuntimeConfig: env } = getNextConfig()
 const nftContractAddress = process.env.NFT_CONTRACT_ADDRESS || "0x0165878a594ca255338adfa4d48449f69242eb8f"
-const pollingInterval = 5000 // Polling interval in milliseconds
+const pollingInterval = 3000 // Polling interval in milliseconds
 const anonNFTExContractAddress = process.env.ANONNFTEX_CONTRACT_ADDRESS || "0x5fc8d32690cc91d4c39d9d3abcbd16989f875707"
 
 export default function ListNFTPage() {
     const router = useRouter()
     const address = useAddress()
+    const [identityInfo, setIdentityInfo] = useState<string | null>(null)
 
-    // const nftContract = useContract(nftContractAddress, SimpleNFTArtifact.abi)
-    // const anonNftExContract = useContract(anonNFTExContractAddress, AnonNFTEx.abi)
-    const [nftInfoList, setNftInfoList] = useState<Array<{ contractAddress: string; tokenId: BigNumber, isListed: boolean }>>([])
-
-    async function isNFTListed(tokenId: number) {
-        const { data, isLoading, error } = useContractRead(anonNftExContract.contract, "nftDeposits", [
-            nftContractAddress,
-            tokenId
-        ])
-        console.log(data)
-        return data.listed
-    }
+    const anonNftExContract = useContract(anonNFTExContractAddress, AnonNFTEx.abi)
+    const {
+        mutateAsync: depositNFTmutateAsync,
+        isLoading: depositNFTisLoading,
+        error: depositNFTerror
+    } = useContractWrite(anonNftExContract.contract, "depositNFT")
+    const [nftInfoList, setNftInfoList] = useState<
+        Array<{ contractAddress: string; tokenId: BigNumber; isListed: boolean }>
+    >([])
 
     useEffect(() => {
         const fetchOwnedNFTs = async () => {
@@ -77,6 +71,7 @@ export default function ListNFTPage() {
 
     const { contract } = useContract(nftContractAddress, SimpleNFTArtifact.abi)
     const { mutateAsync, isLoading, error } = useContractWrite(contract, "mintNFT")
+    const { mutateAsync: approve, isLoading: approveIsLoading, error: approveError } = useContractWrite(contract, "approve")
 
     const handleMint = async () => {
         try {
@@ -103,6 +98,7 @@ export default function ListNFTPage() {
             <Heading as="h2" size="lg" mb={4}>
                 My NFTs
             </Heading>
+            {identityInfo && <Textarea mt={2} value={identityInfo} isReadOnly />}
             <VStack align="start" spacing={4}>
                 {nftInfoList.map((nftInfo, index) => (
                     <HStack key={index} spacing={4}>
@@ -118,10 +114,26 @@ export default function ListNFTPage() {
                             colorScheme={nftInfo.isListed ? "gray" : "blue"}
                             isDisabled={nftInfo.isListed}
                             onClick={() => {
-                                // Add logic to handle listing the NFT
+                                const identity = new Identity()
+                                setIdentityInfo(
+                                    `trapdoor: ${identity.trapdoor}\n nullifier: ${identity.nullifier}\n commitment: ${identity.commitment}`
+                                )
+                                depositNFTmutateAsync({
+                                    args: [nftInfo.contractAddress, nftInfo.tokenId, identity.commitment.toString()]
+                                })
                             }}
                         >
                             {nftInfo.isListed ? "Listed" : "List"}
+                        </Button>
+                        <Button
+                            colorScheme={nftInfo.isListed ? "gray" : "blue"}
+                            onClick={() => {
+                                approve({
+                                    args: [anonNFTExContractAddress, nftInfo.tokenId]
+                                })
+                            }}
+                        >
+                            {"Approve"}
                         </Button>
                     </HStack>
                 ))}
